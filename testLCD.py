@@ -25,6 +25,8 @@ from PIL import ImageFont
 import Adafruit_ILI9341 as TFT
 import Adafruit_GPIO as GPIO
 import Adafruit_GPIO.SPI as SPI
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 # Raspberry Pi configuration.
@@ -92,6 +94,39 @@ def draw_rotated_text(image, text, position, angle, font, fill=(255,255,255)):
     rotated = textimage.rotate(angle, expand=1)
     # Paste the text into the image, using it as a mask for transparency.
     image.paste(rotated, position, rotated)
+
+# text image and rotate it so it's easy to paste in the buffer.
+def draw_plot(image, text, position, angle, font, fill=(255,255,255)):
+    # Get rendered font width and height.
+    draw = ImageDraw.Draw(image)
+    width, height = draw.textsize(text, font=font)
+    # Create a new image with transparent background to store the text.
+    textimage = Image.new('RGBA', (width, height), (0,0,0,0))
+    # Render the text.
+    textdraw = ImageDraw.Draw(textimage)
+    textdraw.text((0,0), text, font=font, fill=fill)
+    # Rotate the text image.
+    rotated = textimage.rotate(angle, expand=1)
+    # Paste the text into the image, using it as a mask for transparency.
+    image.paste(rotated, position, rotated)
+
+# Example data for the plot.
+x = np.linspace(0, 10, 100)
+y = np.sin(x)
+
+# Create and display the plot.
+plt.figure(figsize=(320, 240), dpi=1)  # Set the figure size to match the LCD screen
+plt.plot(x, y)
+plt.xlabel('X-axis Label')
+plt.ylabel('Y-axis Label')
+plt.title('Plot Title')
+
+# Save the plot to a temporary image file
+# plt.savefig('/home/nhatld/Pictures/plot.png', bbox_inches='tight', dpi=96)
+
+# Load the saved image and display it on the LCD
+# plot_image = Image.open('/home/nhatld/Pictures/plot.png')
+disp.display(plt)
 
 # Write two lines of white text on the buffer, rotated 90 degrees counter clockwise.
 # Open the file in read mode ('r' for read)

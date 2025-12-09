@@ -10,7 +10,9 @@ import time
 import datetime
 import joblib
 import requests
+import random
 
+# server 169.254.152.179
 import numpy as np
 import pandas as pd
 # import matplotlib.pyplot as plt
@@ -126,7 +128,7 @@ def draw_text(image, text, position, angle, font, outline=(256, 256, 256), fill=
     draw.text(position, text, font=font, fill=fill)
 
 # Draw template
-text = "NIR Firmness Predictor"
+text = "Mango index Predictor"
 draw_text(image, text, (40, 15), 90, fontMono)
 # display.image(image)
 text1 = "Dry matter"
@@ -190,7 +192,7 @@ while True:
         nirs.set_lamp_on_off(-1)
 
         results = nirs.get_scan_results()
-        print(results) 
+        # print(results) 
         # df = pd.DataFrame(results)
         # print(df)
         # Get the current date and time
@@ -254,7 +256,7 @@ while True:
         y_pred = loaded_pls_model.predict(X.reshape(1,-1))
         y_pred = y_pred[0, 0]
         print("Predicted Dry Material " + "{:.3f}".format(y_pred) + "%")       
-        
+        y_pred = map_value(y_pred, 0, 200,  100, 0)
         # Data to be written to the file
         data_to_write = "{:.1f}".format(y_pred)
 
@@ -313,12 +315,24 @@ while True:
         draw_text(image, text, (225, 225), 0, font)
         text = "0"
         draw_text(image, text, (2, 215), 0, font)
-        text = str(max_value) + "(cd)"
+        text = str(max_value) + "(AU)"
         draw_text(image, text, (2, 45), 0, font)
 
         text2 = str(data_to_write) + "%"
         draw_text(image, text2, (240, 130), 90, fontMono)
         display.image(image)
+
+        # spectrum_data = list(results["intensity"])
+        spectrum_data = [random.random() for _ in range(227)]
+        mango_indices = {
+            'Dry Matter': y_pred,
+            'Sugar': random.uniform(10, 15),       # example range
+            'Acid': random.uniform(1, 3),          # example range
+            'Brix': random.uniform(10, 20)         # example range
+        }
+        data_to_send = {'spectrum': spectrum_data, 'indices': mango_indices}
+        print(data_to_send)
+        # requests.post('http://192.168.137.1:5000/data', json=data_to_send)
 
         # Pause to avoid rapid updates while the button is held down
         time.sleep(0.5)
