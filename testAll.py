@@ -128,7 +128,7 @@ def draw_text(image, text, position, angle, font, outline=(256, 256, 256), fill=
     draw.text(position, text, font=font, fill=fill)
 
 # Draw template
-text = "Mango index Predictor"
+text = "Substance Analyzer"
 draw_text(image, text, (40, 15), 90, fontMono)
 # display.image(image)
 text1 = "Dry matter"
@@ -323,16 +323,16 @@ while True:
         display.image(image)
 
         # spectrum_data = list(results["intensity"])
-        spectrum_data = [random.random() for _ in range(227)]
-        mango_indices = {
-            'Dry Matter': y_pred,
-            'Sugar': random.uniform(10, 15),       # example range
-            'Acid': random.uniform(1, 3),          # example range
-            'Brix': random.uniform(10, 20)         # example range
+        spectrum_data = list(results.get("intensity", []))
+        if not spectrum_data:
+            spectrum_data = [random.random() for _ in range(227)]
+        analysis_results = {
+            'dry_matter_estimate': float(y_pred) if 'y_pred' in locals() else None,
+            'notes': 'Replace analysis_results with your own substance-specific metrics.'
         }
-        data_to_send = {'spectrum': spectrum_data, 'indices': mango_indices}
+        data_to_send = {'spectrum': spectrum_data, 'analysis': analysis_results}
         print(data_to_send)
-        # requests.post('http://192.168.137.1:5000/data', json=data_to_send)
+        # Optionally post: requests.post('http://<server-ip>:5000/data', json=data_to_send)
 
         # Pause to avoid rapid updates while the button is held down
         time.sleep(0.5)
