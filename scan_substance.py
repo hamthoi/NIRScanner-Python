@@ -66,9 +66,22 @@ def acquire_spectrum(n_repeats=1, save_csv=False):
 
     # Optionally save CSV
     if save_csv:
+        # 'prefix' will be provided via outer-scope (main) by design. If missing, default to ''
+        prefix = globals().get('__csv_prefix__', '')
+        # sanitize prefix: allow alnum, dash, underscore
+        if prefix:
+            safe_prefix = ''.join(c for c in prefix if (c.isalnum() or c in ('-', '_')))
+            safe_prefix = safe_prefix.strip('-_')
+        else:
+            safe_prefix = ''
+
         os.makedirs('Data', exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        filename = os.path.join('Data', f'{timestamp}.csv')
+        if safe_prefix:
+            filename = os.path.join('Data', f'{safe_prefix}-{timestamp}.csv')
+        else:
+            filename = os.path.join('Data', f'{timestamp}.csv')
+
         if wavelengths is None:
             # save only intensities
             np.savetxt(filename, intensities, delimiter=',', header='intensity', comments='')
@@ -83,8 +96,13 @@ def acquire_spectrum(n_repeats=1, save_csv=False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--save-csv', action='store_true', help='Save a CSV of the scan into Data/')
+    parser.add_argument('--prefix', type=str, default='', help='Optional filename prefix for saved CSV (e.g. sugar, salt). If empty, no prefix is added.')
     parser.add_argument('--repeats', type=int, default=1, help='Number of repeats to perform')
     args = parser.parse_args()
+
+    # Make prefix available to acquire_spectrum via module-global variable
+    prefix = (args.prefix or '').strip()
+    globals()['__csv_prefix__'] = prefix
 
     wl, ints = acquire_spectrum(n_repeats=args.repeats, save_csv=args.save_csv)
     print('Scan result: intensities shape =', ints.shape)
