@@ -13,6 +13,7 @@ import os
 from datetime import datetime
 
 import numpy as np
+import pandas as pd
 
 try:
     from NIRS import NIRS
@@ -47,6 +48,8 @@ def acquire_spectrum(n_repeats=1, save_csv=False):
         # Perform scan
         nirs.scan(n_repeats)
         results = nirs.get_scan_results()
+        # keep the raw results dict for legacy CSV formatting
+        results_raw = dict(results)
         # Turn lamp off
         try:
             nirs.set_lamp_on_off(-1)
@@ -55,14 +58,26 @@ def acquire_spectrum(n_repeats=1, save_csv=False):
 
         wavelengths = results.get('wavelength', None)
         intensities = results.get('intensity', None)
+        references = results.get('reference', None)
         if intensities is None:
             raise RuntimeError('Device returned no intensity data')
         wavelengths = np.array(wavelengths) if wavelengths is not None else None
         intensities = np.array(intensities)
+        references = np.array(references) if references is not None else None
     else:
         # Simulate wavelengths and intensities
         wavelengths = np.linspace(900, 1700, 227)
         intensities = np.abs(np.sin(np.linspace(0, 6.28, 227)) * 5e4 + np.linspace(1e4, 8e4, 227))
+        # create a simulated references array to match legacy CSV layout
+        references = np.full_like(intensities, np.nan)
+
+    # Compute absorbance if reference available: A = -log10(intensity / reference)
+    absorbance = None
+    if references is not None:
+        # avoid division by zero and invalid values
+        with np.errstate(divide='ignore', invalid='ignore'):
+            reflectance = np.where(references > 0, intensities.astype(float) / references.astype(float), np.nan)
+            absorbance = np.where(reflectance > 0, -np.log10(reflectance), np.nan)
 
     # Optionally save CSV
     if save_csv:
@@ -81,16 +96,62 @@ def acquire_spectrum(n_repeats=1, save_csv=False):
             filename = os.path.join('Data', f'{safe_prefix}-{timestamp}.csv')
         else:
             filename = os.path.join('Data', f'{timestamp}.csv')
+        # If we have live device results, save in the legacy DataFrame layout
+        columns_order = [
+            'header_version', 'scan_name', 'scan_time', 'temperature_system',
+            'temperature_detector', 'humidity', 'pga', 'wavelength', 'intensity',
+            'reference', 'valid_length', 'absorbance'
+        ]
 
-        if wavelengths is None:
-            # save only intensities
-            np.savetxt(filename, intensities, delimiter=',', header='intensity', comments='')
+        if HAS_NIRS and 'results_raw' in locals():
+            # Ensure results_raw contains an 'absorbance' field (fill with NaN if missing)
+            length = None
+            try:
+                length = int(results_raw.get('valid_length', 0))
+            except Exception:
+                pass
+            if length is None or length == 0:
+                # fallback to intensity length
+                try:
+                    length = len(results_raw.get('intensity', []))
+                except Exception:
+                    length = 0
+
+            if 'absorbance' not in results_raw:
+                if absorbance is not None:
+                    results_raw['absorbance'] = list(absorbance)
+                else:
+                    results_raw['absorbance'] = [float('nan')] * length
+
+            # results_raw is expected to be a dict with list-like and scalar entries
+            df = pd.DataFrame(results_raw)
+            # ensure columns order matches legacy layout (absorbance will be last)
+            df = df.reindex(columns=columns_order)
+            df.to_csv(filename, index=True)
         else:
-            arr = np.vstack([wavelengths, intensities]).T
-            np.savetxt(filename, arr, delimiter=',', header='wavelength_nm,intensity', comments='')
+            # Simulated or no-NIRS fallback: construct a dict similar to legacy results
+            length = len(intensities) if hasattr(intensities, '__len__') else 1
+            sim_results = {
+                'header_version': 0,
+                'scan_name': 'sim',
+                'scan_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'temperature_system': np.nan,
+                'temperature_detector': np.nan,
+                'humidity': np.nan,
+                'pga': np.nan,
+                'wavelength': list(wavelengths) if wavelengths is not None else [np.nan] * length,
+                'intensity': list(intensities) if hasattr(intensities, '__len__') else [intensities],
+                'reference': list(references) if references is not None else [np.nan] * length,
+                'valid_length': length,
+                'absorbance': list(absorbance) if absorbance is not None else [np.nan] * length
+            }
+            df = pd.DataFrame(sim_results)
+            df = df.reindex(columns=columns_order)
+            df.to_csv(filename, index=True)
+
         print(f'Saved scan to {filename}')
 
-    return wavelengths, intensities
+    return wavelengths, intensities, references, absorbance
 
 
 def main():
@@ -104,13 +165,17 @@ def main():
     prefix = (args.prefix or '').strip()
     globals()['__csv_prefix__'] = prefix
 
-    wl, ints = acquire_spectrum(n_repeats=args.repeats, save_csv=args.save_csv)
+    wl, ints, refs, absb = acquire_spectrum(n_repeats=args.repeats, save_csv=args.save_csv)
     print('Scan result: intensities shape =', ints.shape)
     # For convenience print first 10 values
     print('First 10 intensity values:', ints[:10].tolist())
+    if refs is not None:
+        print('Reference shape =', refs.shape)
+    if absb is not None:
+        print('Absorbance shape =', absb.shape)
 
-    # Return a 1D array (intensities) for downstream pipelines
-    return ints
+    # Return (wavelengths, intensities, references, absorbance)
+    return wl, ints, refs, absb
 
 
 if __name__ == '__main__':
