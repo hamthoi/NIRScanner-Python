@@ -41,7 +41,7 @@ chmod +x prune_unused.sh
 /path/to/venv/bin/python scan_substance.py --save-csv
 ```
 
-6) (Optional) Scan and save as training data. Run this and replace "sugar" with your substance label. This will append that label to the csv file as a prefix:
+6) (Optional) Run a scan and save as training data. Run this and replace "sugar" with your substance label. This will append that label to the csv file as a prefix:
 ```bash
 /path/to/venv/bin/python python scan_substance.py --save-csv --prefix sugar
 ```
@@ -59,12 +59,6 @@ Notes
 - Keep `lib/` and `src/` if you want to try prebuilt binaries or rebuild the native extension locally — `build_native_pi.sh` will compile against the provided Python executable.
 - `prune_unused.sh` will prompt before deleting demo files; I left deletion under your control so you can verify everything on the Pi first.
 - If `_NIRScanner.so` is not compatible with the venv Python (ABI mismatch), build with the venv python as shown above.
-
-If you want I can now:
-- (A) adapt `systemd/nirscan.service` with your exact venv path and add an install script that registers it automatically, or
-- (B) add a small preprocessing helper (SNV/MSC/Savitzky–Golay) to `scan_substance.py` and optionally save both raw and preprocessed spectra.
-
-Tell me which and I will implement it.
 
 Quick setup
 1. Ensure the compiled Python extension (`_NIRScanner.so`) matching your Python version is available in the project root or on `PYTHONPATH`. The `lib/` folder contains prebuilt binaries for some platforms.
@@ -85,7 +79,7 @@ source .venv/bin/activate    # Linux / Raspberry Pi
 pip install numpy pandas scipy pillow requests
 ```
 
-If you are using Python 3.11.2 (Raspberry Pi 3B):
+We use 3.11.2 (Raspberry Pi 3B), if you're not sure:
 
 - Run the `check_python_version.py` script to verify your Python ABI information before using prebuilt binaries:
 
@@ -116,7 +110,7 @@ Running a substance scan (example)
   - Instantiates the `NIRS` wrapper
   - Configures the device
   - Performs a scan
-  - Returns a 1D NumPy array of intensities and saves a timestamped CSV to `Data/`
+  - Returns scan information and saves a timestamped CSV to `Scans/`
 
 Example command (on the Pi):
 
@@ -125,20 +119,40 @@ python3 scan_substance.py --save-csv
 ```
 
 Output:
-- The script prints a summary and saves `Data/<timestamp>.csv` containing two columns: wavelength (nm) and intensity (AU). If the device or native library isn't available, the script will fall back to a simulated spectrum (useful for testing).
+- The script prints a short summary to stdout (intensity shape, sample info) and saves a CSV to `~/Scans/` (or `Scans/` in earlier docs). The filename is either `<timestamp>.csv` or `<prefix>-<timestamp>.csv` when `--prefix` is provided.
 
-Integrating substance analysis
-- Each scan returns a 1D intensity array; this is the raw spectral data. For substance scanning you typically:
-  - Convert intensity -> reflectance (divide by reference)
-  - Apply preprocessing (SNV, MSC, derivatives, smoothing)
-  - Run classification/regression models (PLS, SVM, neural nets)
+- CSV layout: the saved file uses the legacy column layout expected by downstream training code. Columns (in this order) are:
+  - `header_version`
+  - `scan_name`
+  - `scan_time`
+  - `temperature_system`
+  - `temperature_detector`
+  - `humidity`
+  - `pga`
+  - `wavelength`
+  - `intensity`
+  - `reference`
+  - `valid_length`
+  - `absorbance`  (computed as `-log10(intensity/reference)` when reference is available; otherwise NaN)
+
+- The CSV is written with `pandas.DataFrame.to_csv(...)` and currently includes the DataFrame index as the first column (to preserve legacy formatting). If you prefer no index column, run the script and I can change the code to write `index=False`.
+
+- Example commands:
+
+```bash
+python scan_substance.py --save-csv            # saves ~/Scans/<timestamp>.csv
+python scan_substance.py --save-csv --prefix sugar   # saves ~/Scans/sugar-<timestamp>.csv
+```
+
+- To read the CSV with pandas:
+
+```python
+import pandas as pd
+df = pd.read_csv('~/Scans/sugar-20251210...csv')
+print(df.columns)
+```
 
 - Keep your substance-specific models separate from the scanner wrapper. Use `scan_substance.py` as the acquisition step and then pipe the returned 1D array into your analysis pipeline.
-
-Next steps you might want me to do
-- Add a CLI flag to `scan_substance.py` to run multiple repeats or different scan types (hadamard vs column).
-- Integrate an example PLS classification/regression pipeline for your substance dataset.
-- Clean up remaining demo scripts (`testAll.py`, `testNIR.py`) to remove fruit-specific code.
 
 License & Notes
 - This repo wraps vendor-provided binaries and code; check the original project and vendor licenses for redistribution constraints.
