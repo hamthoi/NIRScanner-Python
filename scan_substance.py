@@ -90,12 +90,14 @@ def acquire_spectrum(n_repeats=1, save_csv=False):
         else:
             safe_prefix = ''
 
-        os.makedirs('Data', exist_ok=True)
+        # Save scans under the user's Scans directory (expand ~)
+        target_dir = os.path.expanduser('~/Scans')
+        os.makedirs(target_dir, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         if safe_prefix:
-            filename = os.path.join('Data', f'{safe_prefix}-{timestamp}.csv')
+            filename = os.path.join(target_dir, f'{safe_prefix}-{timestamp}.csv')
         else:
-            filename = os.path.join('Data', f'{timestamp}.csv')
+            filename = os.path.join(target_dir, f'{timestamp}.csv')
         # If we have live device results, save in the legacy DataFrame layout
         columns_order = [
             'header_version', 'scan_name', 'scan_time', 'temperature_system',
