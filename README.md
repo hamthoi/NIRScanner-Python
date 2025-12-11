@@ -79,14 +79,6 @@ source .venv/bin/activate    # Linux / Raspberry Pi
 pip install numpy pandas scipy pillow requests
 ```
 
-We use 3.11.2 (Raspberry Pi 3B), if you're not sure:
-
-- Run the `check_python_version.py` script to verify your Python ABI information before using prebuilt binaries:
-
-```bash
-python3 check_python_version.py
-```
-
 - If there is no `_NIRScanner.so` matching your Python ABI in `lib/`, build the native extension using the included helper script:
 
 ```bash
