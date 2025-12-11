@@ -41,7 +41,12 @@ chmod +x prune_unused.sh
 /path/to/venv/bin/python scan_substance.py --save-csv
 ```
 
-6) To run at boot, adapt the example in `systemd/nirscan.service` (edit `ExecStart` and `WorkingDirectory` to match your venv and project paths), then copy it to `/etc/systemd/system/` and enable it:
+6) (Optional) Scan and save as training data. Run this and replace "sugar" with your substance label. This will append that label to the csv file as a prefix:
+```bash
+/path/to/venv/bin/python python scan_substance.py --save-csv --prefix sugar
+```
+
+7) To run at boot, adapt the example in `systemd/nirscan.service` (edit `ExecStart` and `WorkingDirectory` to match your venv and project paths), then copy it to `/etc/systemd/system/` and enable it:
 
 ```bash
 sudo cp systemd/nirscan.service /etc/systemd/system/nirscan.service
